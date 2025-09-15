@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Resume Preview</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      body {
+        background: #f4f4f4;
+        font-family: Arial, sans-serif;
+      }
+      .resume-wrapper {
+        max-width: 800px;
+        margin: 30px auto;
+        padding: 40px;
+        background: #fff;
+        color: #000;
+      }
+      .resume-header {
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .resume-header h1 {
+        margin: 0;
+        font-size: 28px;
+      }
+      .contact-line {
+        font-size: 14px;
+        color: #444;
+        margin-top: 6px;
+      }
+      h2 {
+        font-size: 18px;
+        border-bottom: 1px solid #ccc;
+        padding-bottom: 4px;
+        margin-top: 24px;
+        margin-bottom: 10px;
+      }
+      p {
+        margin: 6px 0;
+        line-height: 1.5;
+      }
+      ul {
+        margin: 6px 0 10px 20px;
+        padding: 0;
+      }
+      li {
+        margin: 4px 0;
+      }
+      .actions {
+        margin: 20px auto;
+        text-align: center;
+      }
+      .actions button {
+        margin: 0 6px;
+        padding: 10px 14px;
+      }
+      @media print {
+        .actions {
+          display: none;
+        }
+        body {
+          background: #fff;
+        }
+      }
+      .resume-content,
+      .resume-content * {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        white-space: normal;
+        hyphens: auto;
+        box-sizing: border-box;
+      }
+      .resume-content a,
+      .resume-content code,
+      .resume-content pre {
+        word-break: break-all;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="actions">
+      <button onclick="window.print()">Download PDF</button>
+      <button onclick="downloadTxt()">Download TXT</button>
+    </div>
+
+    <div class="resume-wrapper" id="resume"></div>
+
+    <script>
+      const data = JSON.parse(localStorage.getItem("resumeData") || "{}");
+      const resume = document.getElementById("resume");
+
+      function safe(s = "") {
+        return String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#039;",
+            }[c])
+        );
+      }
+      function addSection(title, html) {
+        if (html && html.trim()) {
+          // ensure wrapper exists
+          let contentWrapper = document.querySelector(".resume-content");
+          if (!contentWrapper) {
+            contentWrapper = document.createElement("div");
+            contentWrapper.className = "resume-content";
+            resume.appendChild(contentWrapper);
+          }
+          contentWrapper.innerHTML += `<h2>${title}</h2>${html}`;
+        }
+      }
+
+      // Header
+      const pi = data.personalInfo || {};
+      const pl = data.publicLinks || {};
+      let contacts = [
+        pi.email,
+        pi.phone,
+        pl.github,
+        pl.linkedin,
+        pl.portfolio,
+        pl.website,
+      ]
+        .filter(Boolean)
+        .map(safe)
+        .join(" | ");
+      // Add custom website links
+      if (Array.isArray(pl.custom)) {
+        pl.custom
+          .map((c) => c.url)
+          .filter(Boolean)
+          .forEach((url) => {
+            if (contacts.length) {
+              contacts += " | " + safe(url);
+            } else {
+              contacts = safe(url);
+            }
+          });
+      }
+
+      resume.innerHTML += `
+  <div class="resume-header" style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <h1>${safe(pi.fullName || "")}</h1>
+      <div class="contact-line">${contacts}</div>
+    </div>
+    ${
+      pi.profilePhoto
+        ? `<img src="${pi.profilePhoto}" alt="Profile Photo" style="width:100px;height:100px;border-radius:50%;object-fit:cover;margin-left:20px;" />`
+        : ""
+    }
+  </div>
+`;
+
+      // Summary
+      if (pi.summary)
+        addSection("Professional Summary", `<p>${safe(pi.summary)}</p>`);
+
+      // Education
+      if (Array.isArray(data.education) && data.education.length) {
+        const html = data.education
+          .map((e) => {
+            const period =
+              (e.startDate || "") +
+              (e.current ? " - Present" : e.endDate ? " - " + e.endDate : "");
+            return `
+        <p><strong>${safe(e.degree || "")}</strong>, ${safe(
+              e.institution || ""
+            )} (${safe(period)})</p>
+        ${e.cgpa ? `<p>CGPA/Marks: ${safe(e.cgpa)}</p>` : ""}
+        ${e.description ? `<p>${safe(e.description)}</p>` : ""}
+      `;
+          })
+          .join("");
+        addSection("Education", html);
+      }
+
+      // Work Experience
+      if (Array.isArray(data.experience) && data.experience.length) {
+        const html = data.experience
+          .map((e) => {
+            const period =
+              (e.startDate || "") +
+              (e.current ? " - Present" : e.endDate ? " - " + e.endDate : "");
+            return `
+        <p><strong>${safe(e.jobTitle || "")}</strong>, ${safe(
+              e.company || ""
+            )} (${safe(period)})</p>
+        ${
+          e.description
+            ? `<ul>${e.description
+                .split(/[\n•\-]\s*/)
+                .filter(Boolean)
+                .map((x) => `<li>${safe(x)}</li>`)
+                .join("")}</ul>`
+            : ""
+        }
+      `;
+          })
+          .join("");
+        addSection("Work Experience", html);
+      }
+
+      // ===== Internships (NEW) =====
+      if (Array.isArray(data.internships) && data.internships.length) {
+        const html = data.internships
+          .map((i) => {
+            const period = [i.startDate, i.endDate].filter(Boolean).join(" - ");
+            return `
+              <p><strong>${safe(i.name || "")}</strong>, ${safe(
+              i.organization || ""
+            )} (${safe(period)})</p>
+              ${i.description ? `<p>${safe(i.description)}</p>` : ""}
+            `;
+          })
+          .join("");
+        addSection("Internships", html);
+      }
+
+      // Projects
+      if (Array.isArray(data.projects) && data.projects.length) {
+        const html = data.projects
+          .map((p) => {
+            const period = [p.startDate, p.endDate].filter(Boolean).join(" - ");
+            return `
+        <p>
+          <strong>${safe(p.name || "")}</strong>
+          ${period ? ` (${safe(period)})` : ""}
+        </p>
+        ${
+          p.projectUrl
+            ? `<p><a href="${safe(p.projectUrl)}" target="_blank">${safe(
+                p.projectUrl
+              )}</a></p>`
+            : ""
+        }
+        ${
+          p.description
+            ? `<ul>${p.description
+                .split(/[\n•\-]\s*/)
+                .filter(Boolean)
+                .map((x) => `<li>${safe(x)}</li>`)
+                .join("")}</ul>`
+            : ""
+        }
+      `;
+          })
+          .join("");
+        addSection("Projects", html);
+      }
+
+      // Certificates
+      if (Array.isArray(data.certifications) && data.certifications.length) {
+        const html = data.certifications
+          .map(
+            (c) => `
+        <p><strong>${safe(c.name || "")}</strong> - ${safe(
+              c.issuer || ""
+            )} (${safe(c.date || "")})</p>
+            ${
+              c.url
+                ? `<p><a href="${safe(c.url)}" target="_blank">${safe(
+                    c.url
+                  )}</a></p>`
+                : ""
+            }
+        ${c.description ? `<p>${safe(c.description)}</p>` : ""}
+      `
+          )
+          .join("");
+        addSection("Certificates", html);
+      }
+
+      // Skills
+      if (Array.isArray(data.skills) && data.skills.length) {
+        const html = `<ul>${data.skills
+          .map(
+            (s) =>
+              `<li>
+          ${safe(s.name || "")}
+          ${s.category ? ` - ${safe(s.category)}` : ""}
+          ${s.level ? ` (${safe(s.level)})` : ""}
+        </li>`
+          )
+          .join("")}</ul>`;
+        addSection("Skills", html);
+      }
+
+      // Languages
+      if (Array.isArray(data.languages) && data.languages.length) {
+        const html = `<ul>${data.languages
+          .map((l) => `<li>${safe(l.name || "")}</li>`)
+          .join("")}</ul>`;
+        addSection("Languages", html);
+      }
+
+      // Hobbies
+      if (Array.isArray(data.hobbies) && data.hobbies.length) {
+        const html = `<ul>${data.hobbies
+          .map((h) => `<li>${safe(h.hobby || "")}</li>`)
+          .join("")}</ul>`;
+        addSection("Hobbies", html);
+      }
+
+      // Additional Info
+      if (data.additionalInfo && data.additionalInfo.trim()) {
+        const formatted = safe(data.additionalInfo).replace(/\n/g, "<br>");
+        addSection("Additional Information", `<p>${formatted}</p>`);
+      }
+
+
+      // Declaration
+      if (data.declaration && data.declaration.trim()) {
+      const formatted = safe(data.declaration).replace(/\n/g, "<br>");
+      addSection("Declaration", `<p>${formatted}</p>`);
+      }
+
+
+
+
+      // TXT download
+      function downloadTxt() {
+        const text = resume.innerText;
+        const blob = new Blob([text], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "resume.txt";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+    </script>
+  </body>
+</html>
